@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: planificador-backend
+    restart: always
+    environment:
+      - PORT=3001
+      - JWT_SECRET=CristianSecretPlanificador2026_VPS
+      - DB_PATH=/app/data/database.sqlite
+    volumes:
+      - backend-data:/app/data
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: planificador-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:
