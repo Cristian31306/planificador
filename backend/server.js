@@ -317,7 +317,7 @@ app.post('/api/generate', authenticateToken, async (req, res) => {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
 
     let systemPrompt = `Eres un asistente experto en planificación y gestión de proyectos de software.
 Debes devolver ÚNICAMENTE el contenido solicitado en formato Markdown. 
