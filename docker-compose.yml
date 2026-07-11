@@ -12,8 +12,7 @@ services:
       - DB_PATH=/app/data/database.sqlite
     volumes:
       - backend-data:/app/data
-    ports:
-      - "3001:3001"
+
 
   frontend:
     build:
