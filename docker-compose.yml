@@ -21,7 +21,7 @@ services:
     container_name: planificador-frontend
     restart: always
     ports:
-      - "80:80"
+      - "3010:80"
     depends_on:
       - backend
 
