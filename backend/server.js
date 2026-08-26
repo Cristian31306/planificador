@@ -301,6 +301,7 @@ app.put('/api/projects/:id/assign', authenticateToken, (req, res) => {
       res.json({ success: true });
     });
   });
+  });
 });
 
 app.delete('/api/projects/:id', authenticateToken, (req, res) => {
