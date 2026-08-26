@@ -50,7 +50,7 @@ app.post('/api/login', (req, res) => {
     if (!validPassword) return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-    res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   });
 });
 

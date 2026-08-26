@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getProjects, createProject, deleteProject, getUsers, assignProject, updateUser } from '../api';
+import { getProjects, createProject, deleteProject, getUsers, assignProject, updateUser, updateProject } from '../api';
 import { Plus, Folder, Trash2, LogOut, Settings, Search, CheckCircle, Clock, ChevronDown, UserPlus, User, X } from 'lucide-react';
 import { PHASES, TOTAL_ITEMS, itemHasContent } from '../constants';
 
@@ -61,6 +61,13 @@ export default function Dashboard() {
     loadProjects();
     loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (!profileName && users.length > 0) {
+      const u = users.find(u => u.id === user.id);
+      if (u && u.name) setProfileName(u.name);
+    }
+  }, [users, profileName, user.id]);
 
   const handleCreate = async () => {
     try {
@@ -130,7 +137,23 @@ export default function Dashboard() {
     };
   });
 
-  const isProjectComplete = (p) => p.progress === 100 && p.executionProgress === 100 && p.totalTasks > 0;
+  const isProjectComplete = (p) => {
+    if (p.data?.manualStatus === 'completed') return true;
+    if (p.data?.manualStatus === 'active') return false;
+    return p.progress === 100 && p.executionProgress === 100 && p.totalTasks > 0;
+  };
+
+  const handleToggleStatus = async (proj) => {
+    const isComp = isProjectComplete(proj);
+    const newStatus = isComp ? 'active' : 'completed';
+    const newData = { ...proj.data, manualStatus: newStatus };
+    try {
+      await updateProject(proj.id, proj.name, newData);
+      loadProjects();
+    } catch(err) {
+      console.error('Error toggling status', err);
+    }
+  };
 
   const tabProjects = projectsWithProgress.filter(p => 
     activeTab === 'completados' ? isProjectComplete(p) : !isProjectComplete(p)
@@ -229,9 +252,14 @@ export default function Dashboard() {
                     {projIsComplete ? 'Completado' : proj.progress > 0 || proj.executionProgress > 0 ? 'En Progreso' : 'Nuevo'}
                   </span>
                   {(isAdmin || proj.owner_id === user.id) && (
-                    <button onClick={() => handleDelete(proj.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1" aria-label="Eliminar">
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleToggleStatus(proj)} className="text-slate-300 hover:text-cyan-600 transition-colors p-1" title={projIsComplete ? "Marcar como pendiente" : "Marcar como completado"}>
+                        {projIsComplete ? <Clock size={16} /> : <CheckCircle size={16} />}
+                      </button>
+                      <button onClick={() => handleDelete(proj.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1" aria-label="Eliminar" title="Eliminar proyecto">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </div>
 
