@@ -250,7 +250,13 @@ app.post('/api/projects', authenticateToken, (req, res) => {
 
   db.run('INSERT INTO projects (name, data, owner_id) VALUES (?, ?, ?)', [name || 'Nuevo Proyecto', dataStr, owner_id], function(err) {
     if (err) return res.status(500).json({ error: 'Database error' });
-    res.status(201).json({ id: this.lastID, name: name || 'Nuevo Proyecto' });
+    const projectId = this.lastID;
+    
+    // Asignar automáticamente al creador como colaborador
+    db.run('INSERT INTO project_users (project_id, user_id) VALUES (?, ?)', [projectId, owner_id], function(insertErr) {
+      if (insertErr) console.error('Error auto-asignando al creador', insertErr);
+      res.status(201).json({ id: projectId, name: name || 'Nuevo Proyecto' });
+    });
   });
 });
 
