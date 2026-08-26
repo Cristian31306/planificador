@@ -359,11 +359,11 @@ export default function Dashboard() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                   <input
                     type="email"
-                    required
-                    className="w-full min-h-[44px] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                    readOnly
+                    className="w-full min-h-[44px] border border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed rounded-lg px-3 py-2 text-sm focus:outline-none"
                     value={profileEmail}
-                    onChange={(e) => setProfileEmail(e.target.value)}
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">El correo no se puede modificar.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
