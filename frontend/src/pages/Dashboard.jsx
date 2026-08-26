@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getProjects, createProject, deleteProject, getUsers, assignProject } from '../api';
-import { Plus, Folder, Trash2, LogOut, Settings, Search, CheckCircle, Clock, ChevronDown, UserPlus } from 'lucide-react';
+import { getProjects, createProject, deleteProject, getUsers, assignProject, updateUser } from '../api';
+import { Plus, Folder, Trash2, LogOut, Settings, Search, CheckCircle, Clock, ChevronDown, UserPlus, User, X } from 'lucide-react';
 import { PHASES, TOTAL_ITEMS, itemHasContent } from '../constants';
 
 export default function Dashboard() {
@@ -15,6 +15,28 @@ export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.role === 'admin';
 
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileName, setProfileName] = useState(user.name || '');
+  const [profileEmail, setProfileEmail] = useState(user.email || '');
+  const [profilePassword, setProfilePassword] = useState('');
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    setProfileError('');
+    setProfileSuccess('');
+    try {
+      await updateUser(user.id, profileName, profileEmail, profilePassword, user.role);
+      setProfileSuccess('Perfil actualizado exitosamente');
+      const updatedUser = { ...user, name: profileName, email: profileEmail };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setTimeout(() => setShowProfileModal(false), 2000);
+    } catch (err) {
+      setProfileError(err.message);
+    }
+  };
+
   const loadProjects = async () => {
     try {
       const data = await getProjects();
@@ -27,13 +49,11 @@ export default function Dashboard() {
   };
 
   const loadUsers = async () => {
-    if (isAdmin) {
-      try {
-        const data = await getUsers();
-        setUsers(data);
-      } catch (err) {
-        console.error(err);
-      }
+    try {
+      const data = await getUsers();
+      setUsers(data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -136,6 +156,9 @@ export default function Dashboard() {
                 <Settings size={18} className="md:w-4 md:h-4" /> <span className="hidden md:inline">Admin</span>
               </Link>
             )}
+            <button onClick={() => setShowProfileModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-3 py-2 md:py-2 rounded-lg border border-slate-200 shadow-sm min-h-[44px]">
+              <User size={18} className="md:w-4 md:h-4" /> <span className="hidden md:inline">Mi Perfil</span>
+            </button>
             <button onClick={handleLogout} className="flex-1 md:flex-none flex items-center justify-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 bg-white px-3 py-2 md:py-2 rounded-lg border border-slate-200 shadow-sm min-h-[44px]">
               <LogOut size={18} className="md:w-4 md:h-4" /> <span className="hidden md:inline">Salir</span>
             </button>
@@ -205,7 +228,7 @@ export default function Dashboard() {
                     {projIsComplete ? <CheckCircle size={12}/> : <Clock size={12}/>}
                     {projIsComplete ? 'Completado' : proj.progress > 0 || proj.executionProgress > 0 ? 'En Progreso' : 'Nuevo'}
                   </span>
-                  {isAdmin && (
+                  {(isAdmin || proj.owner_id === user.id) && (
                     <button onClick={() => handleDelete(proj.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1" aria-label="Eliminar">
                       <Trash2 size={16} />
                     </button>
@@ -228,7 +251,7 @@ export default function Dashboard() {
                     <span className="text-emerald-700 font-bold">{proj.executionProgress}%</span>
                   </div>
 
-                  {isAdmin && (
+                  {(isAdmin || proj.owner_id === user.id) && (
                     <div className="relative">
                       <button 
                         onClick={() => setOpenAssignId(openAssignId === proj.id ? null : proj.id)}
@@ -275,6 +298,67 @@ export default function Dashboard() {
           })}
         </div>
       </div>
+
+      {/* Modal Mi Perfil */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-100 shrink-0">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <User className="text-cyan-600" /> Mi Perfil
+              </h2>
+              <button onClick={() => setShowProfileModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-4 md:p-6 overflow-y-auto">
+              {profileError && <div className="mb-4 text-red-600 text-sm bg-red-50 p-3 rounded-lg">{profileError}</div>}
+              {profileSuccess && <div className="mb-4 text-emerald-600 text-sm bg-emerald-50 p-3 rounded-lg">{profileSuccess}</div>}
+              
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full min-h-[44px] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full min-h-[44px] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                    value={profileEmail}
+                    onChange={(e) => setProfileEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Nueva Contraseña <span className="text-xs text-slate-400 font-normal">(Opcional)</span>
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Dejar en blanco para no cambiar"
+                    className="w-full min-h-[44px] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                    value={profilePassword}
+                    onChange={(e) => setProfilePassword(e.target.value)}
+                  />
+                </div>
+                <div className="pt-2">
+                  <button type="submit" className="w-full min-h-[44px] bg-cyan-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-cyan-700 transition-colors shadow-sm">
+                    Guardar Cambios
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

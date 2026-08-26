@@ -117,37 +117,50 @@ app.post('/api/users', authenticateToken, isAdmin, (req, res) => {
   });
 });
 
-app.put('/api/users/:id', authenticateToken, isAdmin, (req, res) => {
+app.put('/api/users/:id', authenticateToken, (req, res) => {
   const id = parseInt(req.params.id, 10);
+  
+  if (req.user.role !== 'admin' && req.user.id !== id) {
+    return res.status(403).json({ error: 'No tienes permiso para modificar este usuario' });
+  }
+
   const { name, email, password, role } = req.body;
   if (!email) return res.status(400).json({ error: 'Email es requerido' });
 
-  const userRole = role === 'admin' ? 'admin' : 'user';
+  db.get('SELECT role FROM users WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-  if (password && password.trim() !== '') {
-    const salt = bcrypt.genSaltSync(10);
-    const hash = bcrypt.hashSync(password, salt);
-    db.run('UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?', [name || null, email, hash, userRole, id], function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) return res.status(400).json({ error: 'El email ya está en uso' });
-        return res.status(500).json({ error: 'Database error' });
-      }
-      if (this.changes === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
-      res.json({ success: true });
-    });
-  } else {
-    db.run('UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?', [name || null, email, userRole, id], function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) return res.status(400).json({ error: 'El email ya está en uso' });
-        return res.status(500).json({ error: 'Database error' });
-      }
-      if (this.changes === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
-      res.json({ success: true });
-    });
-  }
+    const finalRole = (req.user.role === 'admin' && role) ? (role === 'admin' ? 'admin' : 'user') : row.role;
+
+    const runUpdate = (hash) => {
+      const query = hash 
+        ? 'UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?'
+        : 'UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?';
+      const params = hash 
+        ? [name || null, email, hash, finalRole, id]
+        : [name || null, email, finalRole, id];
+
+      db.run(query, params, function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE constraint failed')) return res.status(400).json({ error: 'El email ya está en uso' });
+          return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true });
+      });
+    };
+
+    if (password && password.trim() !== '') {
+      const salt = bcrypt.genSaltSync(10);
+      const hash = bcrypt.hashSync(password, salt);
+      runUpdate(hash);
+    } else {
+      runUpdate(null);
+    }
+  });
 });
 
-app.get('/api/users', authenticateToken, isAdmin, (req, res) => {
+app.get('/api/users', authenticateToken, (req, res) => {
   db.all('SELECT id, name, email, role, status FROM users', [], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     res.json(rows);
@@ -191,11 +204,9 @@ app.delete('/api/users/:id', authenticateToken, isAdmin, (req, res) => {
 // --- RUTAS DE PROYECTOS ---
 
 app.get('/api/projects', authenticateToken, (req, res) => {
-  const query = req.user.role === 'admin' 
-    ? 'SELECT p.id, p.name, p.data, p.owner_id, p.created_at, p.updated_at, u.email as owner, (SELECT GROUP_CONCAT(user_id) FROM project_users WHERE project_id = p.id) as collaborator_ids FROM projects p LEFT JOIN users u ON p.owner_id = u.id ORDER BY p.updated_at DESC'
-    : 'SELECT p.id, p.name, p.data, p.owner_id, p.created_at, p.updated_at FROM projects p WHERE p.owner_id = ? OR p.id IN (SELECT project_id FROM project_users WHERE user_id = ?) ORDER BY p.updated_at DESC';
+  const query = 'SELECT p.id, p.name, p.data, p.owner_id, p.created_at, p.updated_at, u.email as owner, (SELECT GROUP_CONCAT(user_id) FROM project_users WHERE project_id = p.id) as collaborator_ids FROM projects p LEFT JOIN users u ON p.owner_id = u.id WHERE p.owner_id = ? OR p.id IN (SELECT project_id FROM project_users WHERE user_id = ?) ORDER BY p.updated_at DESC';
   
-  const params = req.user.role === 'admin' ? [] : [req.user.id, req.user.id];
+  const params = [req.user.id, req.user.id];
 
   db.all(query, params, (err, rows) => {
     if (err) return res.status(500).json({ error: 'Database error' });
@@ -215,10 +226,8 @@ app.get('/api/projects', authenticateToken, (req, res) => {
 
 app.get('/api/projects/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  const query = req.user.role === 'admin' 
-    ? 'SELECT p.*, (SELECT GROUP_CONCAT(user_id) FROM project_users WHERE project_id = p.id) as collaborator_ids FROM projects p WHERE p.id = ?'
-    : 'SELECT p.*, (SELECT GROUP_CONCAT(user_id) FROM project_users WHERE project_id = p.id) as collaborator_ids FROM projects p WHERE p.id = ? AND (p.owner_id = ? OR p.id IN (SELECT project_id FROM project_users WHERE user_id = ?))';
-  const params = req.user.role === 'admin' ? [id] : [id, req.user.id, req.user.id];
+  const query = 'SELECT p.*, (SELECT GROUP_CONCAT(user_id) FROM project_users WHERE project_id = p.id) as collaborator_ids FROM projects p WHERE p.id = ? AND (p.owner_id = ? OR p.id IN (SELECT project_id FROM project_users WHERE user_id = ?))';
+  const params = [id, req.user.id, req.user.id];
 
   db.get(query, params, (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error' });
@@ -266,13 +275,21 @@ app.put('/api/projects/:id', authenticateToken, (req, res) => {
   });
 });
 
-app.put('/api/projects/:id/assign', authenticateToken, isAdmin, (req, res) => {
+app.put('/api/projects/:id/assign', authenticateToken, (req, res) => {
   const { id } = req.params;
   const { user_ids } = req.body;
   if (!Array.isArray(user_ids)) return res.status(400).json({ error: 'user_ids debe ser un arreglo' });
 
-  db.run('DELETE FROM project_users WHERE project_id = ?', [id], function(err) {
+  db.get('SELECT owner_id FROM projects WHERE id = ?', [id], (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'Proyecto no encontrado' });
+    
+    if (req.user.role !== 'admin' && row.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes permiso para asignar usuarios a este proyecto' });
+    }
+
+    db.run('DELETE FROM project_users WHERE project_id = ?', [id], function(err) {
+      if (err) return res.status(500).json({ error: 'Database error' });
 
     if (user_ids.length === 0) return res.json({ success: true });
 
